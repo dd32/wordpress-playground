@@ -103,6 +103,36 @@ export const installTheme: StepHandler<
 			targetFolderName: targetFolderName,
 		});
 		assetFolderName = assetResult.assetFolderName;
+
+		// Determine if a parent theme needs to be installed.
+		const docroot = await playground.documentRoot;
+		const result = await playground.run({
+			code: `<?php
+				require_once( getenv('docroot') . "/wp-load.php" );
+
+				$theme = wp_get_theme( getenv('assetFolderName') );
+
+				if (
+					! $theme->exists() ||
+					$theme->get_stylesheet() !== getenv('assetFolderName') ||
+					$theme->get_stylesheet() === $theme>get_template() ||
+					$theme->parent()->exists()
+				) {
+					die();
+				}
+
+				die( $theme->get_template() );
+			`,
+			env: {
+				docroot,
+				assetFolderName,
+			},
+		});
+		if ( result.text.length ) {
+			// A parent theme is required.
+			const parentThemeSlug = result.text;
+			logger.info( `The theme ${ assetFolderName } requires the parent theme ${ parentThemeSlug } to be installed.` );
+		}
 	} else {
 		assetNiceName = themeData.name;
 		assetFolderName = targetFolderName || assetNiceName;
